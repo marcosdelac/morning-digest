@@ -164,13 +164,20 @@ Estructura del email:
 
 # ── Gemini API ─────────────────────────────────────────────────────────────────
 def generate_with_gemini(prompt):
+    import time
     url  = (f"https://generativelanguage.googleapis.com/v1beta/models/"
             f"gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}")
     body = {"contents": [{"parts": [{"text": prompt}]}]}
-    r    = requests.post(url, json=body, timeout=60)
-    r.raise_for_status()
-    return r.json()['candidates'][0]['content']['parts'][0]['text']
-
+    for intento in range(3):
+        r = requests.post(url, json=body, timeout=60)
+        if r.status_code == 429:
+            espera = 60 * (intento + 1)
+            print(f"⏳ Límite de Gemini, esperando {espera}s...")
+            time.sleep(espera)
+            continue
+        r.raise_for_status()
+        return r.json()['candidates'][0]['content']['parts'][0]['text']
+    raise Exception("Gemini no respondió tras 3 intentos")
 
 # ── Envío de email ─────────────────────────────────────────────────────────────
 def send_email(subject, body_text):
