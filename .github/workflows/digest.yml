@@ -20,7 +20,14 @@ jobs:
 
       - name: Instalar dependencias
         run: pip install -r requirements.txt
-
+        
+- name: Debug secrets
+        run: |
+          echo "GEMINI presente: ${{ secrets.GEMINI_API_KEY != '' }}"
+          env | grep -i gemini || echo "GEMINI no aparece en env"
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          
       - name: Ejecutar digest
         env:
           ICLOUD_EMAIL: ${{ secrets.ICLOUD_EMAIL }}
