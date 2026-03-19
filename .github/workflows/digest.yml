@@ -2,24 +2,18 @@ name: Morning Digest
 
 on:
   schedule:
-    # Lunes a viernes a las 9:00h España (UTC+2 verano → 7:00 UTC / UTC+1 invierno → 8:00 UTC)
-    # Usamos 7:00 UTC para que llegue a las 9:00 en verano (la mayoría del año escolar)
     - cron: '0 7 * * 1-5'
-    # Sábado y domingo a las 10:30h España → 8:30 UTC en verano
     - cron: '30 8 * * 6,0'
-
-  # Permite lanzarlo manualmente desde la pestaña Actions de GitHub (para probar)
   workflow_dispatch:
 
 jobs:
   send-digest:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout código
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configurar Python 3.11
+      - name: Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -29,11 +23,11 @@ jobs:
 
       - name: Ejecutar digest
         env:
-          ICLOUD_EMAIL:        ${{ secrets.ICLOUD_EMAIL }}
+          ICLOUD_EMAIL: ${{ secrets.ICLOUD_EMAIL }}
           ICLOUD_APP_PASSWORD: ${{ secrets.ICLOUD_APP_PASSWORD }}
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
-          GEMINI_API_KEY:      ${{ secrets.GEMINI_API_KEY }}
-          GMAIL_ADDRESS:       ${{ secrets.GMAIL_ADDRESS }}
-          GMAIL_APP_PASSWORD:  ${{ secrets.GMAIL_APP_PASSWORD }}
-          RECIPIENT_EMAIL:     ${{ secrets.RECIPIENT_EMAIL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
         run: python main.py
