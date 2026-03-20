@@ -70,12 +70,13 @@ def get_calendar_events():
         principal = client.principal()
         calendars = principal.calendars()
 
-        today_start = datetime.combine(date.today(), datetime.min.time())
-        today_end   = datetime.combine(date.today(), datetime.max.time())
+        today_start  = datetime.combine(date.today(), datetime.min.time())
+        today_end    = datetime.combine(date.today(), datetime.max.time())
         events_today = []
 
         for calendar in calendars:
             try:
+                # Eventos (VEVENT)
                 events = calendar.date_search(start=today_start, end=today_end, expand=True)
                 for event in events:
                     try:
@@ -83,12 +84,29 @@ def get_calendar_events():
                         summary = str(comp.summary.value) if hasattr(comp, 'summary') else 'Sin título'
                         dtstart = comp.dtstart.value if hasattr(comp, 'dtstart') else None
                         hora    = dtstart.strftime('%H:%M') if isinstance(dtstart, datetime) else 'Todo el día'
-                        events_today.append({'hora': hora, 'titulo': summary})
+                        events_today.append({'hora': hora, 'titulo': summary, 'tipo': 'evento'})
                     except Exception:
                         continue
+
+                # Recordatorios (VTODO)
+                todos = calendar.todos()
+                for todo in todos:
+                    try:
+                        comp    = todo.vobject_instance.vtodo
+                        summary = str(comp.summary.value) if hasattr(comp, 'summary') else 'Sin título'
+                        due     = comp.due.value if hasattr(comp, 'due') else None
+                        if due:
+                            due_date = due.date() if isinstance(due, datetime) else due
+                            if due_date == date.today():
+                                hora = due.strftime('%H:%M') if isinstance(due, datetime) else 'Sin hora'
+                                events_today.append({'hora': hora, 'titulo': summary, 'tipo': 'recordatorio'})
+                    except Exception:
+                        continue
+
             except Exception:
                 continue
 
+        events_today.sort(key=lambda x: x['hora'])
         return events_today if events_today else []
     except Exception as e:
         print(f"Error calendario: {e}")
@@ -168,13 +186,15 @@ def render_news_items(items):
 
 def render_events(events):
     if not events:
-        return '<p style="color:#888;font-size:0.9em;">Sin eventos hoy.</p>'
+        return '<p style="color:#888;font-size:0.9em;">Sin eventos ni recordatorios hoy.</p>'
     html = ''
     for e in events:
+        icono = '🔔' if e.get('tipo') == 'recordatorio' else '📌'
         html += f"""
         <div style="display:flex; gap:12px; margin-bottom:8px; align-items:baseline;">
           <span style="font-size:0.85em; color:#e8a87c; font-weight:700;
                 min-width:70px;">{html_lib.escape(e['hora'])}</span>
+          <span style="font-size:0.85em;">{icono}</span>
           <span style="font-size:0.92em; color:#1a1a1a;">{html_lib.escape(e['titulo'])}</span>
         </div>"""
     return html
