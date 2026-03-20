@@ -48,6 +48,16 @@ def es_espanol(texto):
     coincidencias = palabras & ENGLISH_WORDS
     return len(coincidencias) < 2
 
+PALABRAS_EXCLUIR = {
+    'fútbol', 'futbol', 'atletico', 'atlético', 'real madrid', 'barça',
+    'barcelona', 'liga', 'champions', 'partido', 'gol', 'jugador',
+    'entrenador', 'fichaje', 'baloncesto', 'tenis', 'deporte', 'nba',
+    'formula 1', 'motogp', 'ciclismo', 'atletismo'
+}
+
+def es_relevante(texto):
+    texto_lower = texto.lower()
+    return not any(p in texto_lower for p in PALABRAS_EXCLUIR)
 
 # ── Calendario iCloud ──────────────────────────────────────────────────────────
 def get_calendar_events():
@@ -121,7 +131,8 @@ def get_rss_items(feeds, max_per_feed=3, total_max=4, solo_espanol=True):
                     continue
                 if solo_espanol and not es_espanol(title + ' ' + summary):
                     continue
-
+  if not es_relevante(title + ' ' + summary):
+                    continue
                 items.append({'titulo': title, 'resumen': summary, 'link': link})
                 if len(items) >= total_max:
                     return items
