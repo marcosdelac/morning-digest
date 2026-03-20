@@ -523,9 +523,16 @@ def main():
         resumen_semanal, fecha_str, es_lunes
     )
 
-    subject = f"🫡 ¡A por el {dia_min}!"
-    if es_lunes:
-        subject = f"🫡 ¡A por el {dia_min}! Nueva semana 💪"
+   mensajes = {
+        'Monday':    f"🫡 ¡A por el {dia_min}! Nueva semana 💪",
+        'Tuesday':   f"🫡 ¡A por el {dia_min}! Ya es martes, vamos 🔥",
+        'Wednesday': f"🫡 ¡A por el {dia_min}! Mitad de semana 🐪",
+        'Thursday':  f"🫡 ¡A por el {dia_min}! Casi casi el finde 👀",
+        'Friday':    f"🫡 ¡A por el {dia_min}! Que se acaba la semana 🎉",
+        'Saturday':  f"🫡 ¡A por el {dia_min}! Que es finde 😎",
+        'Sunday':    f"🫡 ¡A por el {dia_min}! Último día de descanso ☕",
+    }
+    subject = mensajes.get(dia_en, f"🫡 ¡A por el {dia_min}!")
 
     print(f"📧 Enviando: {subject}")
     send_email(subject, body_html)
