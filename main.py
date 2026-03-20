@@ -30,9 +30,9 @@ RSS_FEEDS = {
         'https://escxtra.com/feed/',
         'https://eurovoix.com/feed/',
     ],
-    'diseno': [
+      'diseno': [
+        'https://www.marketingdirecto.com/feed',
         'https://www.domestika.org/es/blog/feed',
-        'https://www.beartricks.com/feed/',
         'https://www.genbeta.com/feed',
         'https://hipertextual.com/feed',
         'https://www.puromarketing.com/rss.php',
