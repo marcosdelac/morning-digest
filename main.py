@@ -30,7 +30,7 @@ RSS_FEEDS = {
         'https://escxtra.com/feed/',
         'https://eurovoix.com/feed/',
     ],
-      'diseno': [
+    'diseno': [
         'https://www.marketingdirecto.com/feed',
         'https://www.domestika.org/es/blog/feed',
         'https://www.genbeta.com/feed',
@@ -39,14 +39,9 @@ RSS_FEEDS = {
     ],
 }
 
-# ── Palabras para detectar noticias en inglés ──────────────────────────────────
+# ── Filtros de contenido ───────────────────────────────────────────────────────
 ENGLISH_WORDS = {'the', 'and', 'for', 'with', 'that', 'this', 'will', 'from',
                  'have', 'been', 'their', 'were', 'said', 'they', 'which'}
-
-def es_espanol(texto):
-    palabras = set(texto.lower().split())
-    coincidencias = palabras & ENGLISH_WORDS
-    return len(coincidencias) < 2
 
 PALABRAS_EXCLUIR = {
     'fútbol', 'futbol', 'atletico', 'atlético', 'real madrid', 'barça',
@@ -55,9 +50,14 @@ PALABRAS_EXCLUIR = {
     'formula 1', 'motogp', 'ciclismo', 'atletismo'
 }
 
+def es_espanol(texto):
+    palabras = set(texto.lower().split())
+    return len(palabras & ENGLISH_WORDS) < 2
+
 def es_relevante(texto):
     texto_lower = texto.lower()
     return not any(p in texto_lower for p in PALABRAS_EXCLUIR)
+
 
 # ── Calendario iCloud ──────────────────────────────────────────────────────────
 def get_calendar_events():
@@ -149,8 +149,9 @@ def get_rss_items(feeds, max_per_feed=3, total_max=4, solo_espanol=True):
                     continue
                 if solo_espanol and not es_espanol(title + ' ' + summary):
                     continue
-  if not es_relevante(title + ' ' + summary):
+                if not es_relevante(title + ' ' + summary):
                     continue
+
                 items.append({'titulo': title, 'resumen': summary, 'link': link})
                 if len(items) >= total_max:
                     return items
@@ -212,7 +213,6 @@ def render_weather(w):
         if k in w['description'].lower():
             icono = v
             break
-
     return f"""
     <div style="background:#fdf6f0; border-radius:8px; padding:14px 18px; display:inline-block;">
       <span style="font-size:2em;">{icono}</span>
@@ -252,7 +252,6 @@ def build_email_html(events, weather, news_ext, news_eurov, news_diseno, fecha_s
     {render_section('🎤', 'Eurovisión', render_news_items(news_eurov))}
     {render_section('💡', 'Lectura del día', render_lectura(news_diseno))}
     """
-
     return f"""<!DOCTYPE html>
 <html lang="es">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
