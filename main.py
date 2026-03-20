@@ -20,26 +20,27 @@ RECIPIENT_EMAIL     = os.environ['RECIPIENT_EMAIL']
 # ── Fuentes RSS ────────────────────────────────────────────────────────────────
 RSS_FEEDS = {
     'extremadura': [
-        'https://www.hoy.es/rss/atom.html',
-        'https://www.extremadura7dias.com/feed/',
-        'https://www.elperiodicoextremadura.com/rss/section/portada.xml',
-        'https://www.cope.es/api/rss/extremadura',
+        'https://news.google.com/rss/search?q=Extremadura&hl=es&gl=ES&ceid=ES:es',
+        'https://news.google.com/rss/search?q=Badajoz+OR+Cáceres+OR+Extremadura&hl=es&gl=ES&ceid=ES:es',
     ],
     'eurovision': [
+        'https://escplus.es/feed/',
         'https://eurovision-spain.com/feed/',
+        'https://www.eurovisionnews.es/feed/',
+        'https://eurovisión.es/feed/',
         'https://escxtra.com/feed/',
-        'https://eurovoix.com/feed/',
     ],
     'diseno': [
-        'https://www.marketingdirecto.com/feed',
         'https://www.domestika.org/es/blog/feed',
-        'https://www.genbeta.com/feed',
-        'https://hipertextual.com/feed',
+        'https://www.marketingdirecto.com/feed',
+        'https://www.reasonwhy.es/feed',
         'https://www.puromarketing.com/rss.php',
+        'https://www.creativebloq.com/rss',
+        'https://www.xataka.com/feed',
     ],
 }
 
-# ── Filtros de contenido ───────────────────────────────────────────────────────
+# ── Filtros ────────────────────────────────────────────────────────────────────
 ENGLISH_WORDS = {'the', 'and', 'for', 'with', 'that', 'this', 'will', 'from',
                  'have', 'been', 'their', 'were', 'said', 'they', 'which'}
 
@@ -47,7 +48,15 @@ PALABRAS_EXCLUIR = {
     'fútbol', 'futbol', 'atletico', 'atlético', 'real madrid', 'barça',
     'barcelona', 'liga', 'champions', 'partido', 'gol', 'jugador',
     'entrenador', 'fichaje', 'baloncesto', 'tenis', 'deporte', 'nba',
-    'formula 1', 'motogp', 'ciclismo', 'atletismo'
+    'formula 1', 'motogp', 'ciclismo', 'atletismo', 'formula one'
+}
+
+PALABRAS_DISENO = {
+    'diseño', 'design', 'marketing', 'branding', 'campaña', 'creatividad',
+    'tipografía', 'ilustración', 'video', 'vídeo', 'edición', 'audiovisual',
+    'redes sociales', 'digital', 'contenido', 'creativo', 'visual', 'gráfico',
+    'fotografía', 'tendencia', 'herramienta', 'ia', 'inteligencia artificial',
+    'publicidad', 'agencia', 'copy', 'estrategia', 'seo', 'social media'
 }
 
 def es_espanol(texto):
@@ -57,6 +66,12 @@ def es_espanol(texto):
 def es_relevante(texto):
     texto_lower = texto.lower()
     return not any(p in texto_lower for p in PALABRAS_EXCLUIR)
+
+def es_diseno_relevante(texto):
+    texto_lower = texto.lower()
+    if not es_relevante(texto_lower):
+        return False
+    return any(p in texto_lower for p in PALABRAS_DISENO)
 
 
 # ── Calendario iCloud ──────────────────────────────────────────────────────────
@@ -88,25 +103,31 @@ def get_calendar_events():
                     except Exception:
                         continue
 
-                # Recordatorios (VTODO)
+                # Recordatorios (VTODO) — con fecha hoy Y sin fecha (pendientes)
                 todos = calendar.todos()
                 for todo in todos:
                     try:
                         comp    = todo.vobject_instance.vtodo
                         summary = str(comp.summary.value) if hasattr(comp, 'summary') else 'Sin título'
                         due     = comp.due.value if hasattr(comp, 'due') else None
+
                         if due:
+                            # Tiene fecha: solo si es hoy
                             due_date = due.date() if isinstance(due, datetime) else due
                             if due_date == date.today():
                                 hora = due.strftime('%H:%M') if isinstance(due, datetime) else 'Sin hora'
                                 events_today.append({'hora': hora, 'titulo': summary, 'tipo': 'recordatorio'})
+                        else:
+                            # Sin fecha: lo incluimos como pendiente de hoy
+                            events_today.append({'hora': '—', 'titulo': summary, 'tipo': 'recordatorio'})
+
                     except Exception:
                         continue
 
             except Exception:
                 continue
 
-        events_today.sort(key=lambda x: x['hora'])
+        events_today.sort(key=lambda x: (x['hora'] == '—', x['hora']))
         return events_today if events_today else []
     except Exception as e:
         print(f"Error calendario: {e}")
@@ -134,8 +155,9 @@ def get_weather():
 
 
 # ── RSS ────────────────────────────────────────────────────────────────────────
-def get_rss_items(feeds, max_per_feed=3, total_max=4, solo_espanol=True):
+def get_rss_items(feeds, max_per_feed=4, total_max=4, solo_espanol=True, filtro_diseno=False):
     items = []
+    seen  = set()
     for url in feeds:
         try:
             feed = feedparser.parse(url)
@@ -145,13 +167,16 @@ def get_rss_items(feeds, max_per_feed=3, total_max=4, solo_espanol=True):
                 link    = entry.get('link', '')
                 summary = re.sub(r'<[^>]+>', '', summary).strip()
 
-                if not title:
+                if not title or title in seen:
                     continue
                 if solo_espanol and not es_espanol(title + ' ' + summary):
                     continue
                 if not es_relevante(title + ' ' + summary):
                     continue
+                if filtro_diseno and not es_diseno_relevante(title + ' ' + summary):
+                    continue
 
+                seen.add(title)
                 items.append({'titulo': title, 'resumen': summary, 'link': link})
                 if len(items) >= total_max:
                     return items
@@ -191,10 +216,11 @@ def render_events(events):
     html = ''
     for e in events:
         icono = '🔔' if e.get('tipo') == 'recordatorio' else '📌'
+        hora  = html_lib.escape(e['hora'])
         html += f"""
         <div style="display:flex; gap:12px; margin-bottom:8px; align-items:baseline;">
           <span style="font-size:0.85em; color:#e8a87c; font-weight:700;
-                min-width:70px;">{html_lib.escape(e['hora'])}</span>
+                min-width:70px;">{hora}</span>
           <span style="font-size:0.85em;">{icono}</span>
           <span style="font-size:0.92em; color:#1a1a1a;">{html_lib.escape(e['titulo'])}</span>
         </div>"""
@@ -296,12 +322,22 @@ def send_email(subject, body_html):
 # ── Main ───────────────────────────────────────────────────────────────────────
 def main():
     now   = datetime.now()
-    dias  = {'Monday':'Lunes','Tuesday':'Martes','Wednesday':'Miércoles',
-             'Thursday':'Jueves','Friday':'Viernes','Saturday':'Sábado','Sunday':'Domingo'}
-    meses = {'January':'enero','February':'febrero','March':'marzo','April':'abril',
-             'May':'mayo','June':'junio','July':'julio','August':'agosto',
-             'September':'septiembre','October':'octubre','November':'noviembre','December':'diciembre'}
-    dia_es    = dias.get(now.strftime('%A'), now.strftime('%A'))
+    dias  = {
+        'Monday':'lunes', 'Tuesday':'martes', 'Wednesday':'miércoles',
+        'Thursday':'jueves', 'Friday':'viernes', 'Saturday':'sábado', 'Sunday':'domingo'
+    }
+    dias_cap = {
+        'Monday':'Lunes', 'Tuesday':'Martes', 'Wednesday':'Miércoles',
+        'Thursday':'Jueves', 'Friday':'Viernes', 'Saturday':'Sábado', 'Sunday':'Domingo'
+    }
+    meses = {
+        'January':'enero', 'February':'febrero', 'March':'marzo', 'April':'abril',
+        'May':'mayo', 'June':'junio', 'July':'julio', 'August':'agosto',
+        'September':'septiembre', 'October':'octubre', 'November':'noviembre', 'December':'diciembre'
+    }
+    dia_en    = now.strftime('%A')
+    dia_es    = dias_cap.get(dia_en, dia_en)
+    dia_min   = dias.get(dia_en, dia_en)
     mes_es    = meses.get(now.strftime('%B'), now.strftime('%B'))
     fecha_str = f"{dia_es}, {now.day} de {mes_es} de {now.year}"
 
@@ -315,12 +351,12 @@ def main():
 
     print("📰 Cargando RSS...")
     news_ext    = get_rss_items(RSS_FEEDS['extremadura'], solo_espanol=True)
-    news_eurov  = get_rss_items(RSS_FEEDS['eurovision'], solo_espanol=False)
-    news_diseno = get_rss_items(RSS_FEEDS['diseno'], solo_espanol=True)
+    news_eurov  = get_rss_items(RSS_FEEDS['eurovision'], solo_espanol=True, max_per_feed=4)
+    news_diseno = get_rss_items(RSS_FEEDS['diseno'], solo_espanol=True, filtro_diseno=True)
 
     print("✉️  Generando email...")
     body_html = build_email_html(events, weather, news_ext, news_eurov, news_diseno, fecha_str)
-    subject   = f"📋 Resumen del {dia_es} · {now.day} de {mes_es}"
+    subject   = f"🫡 ¡A por el {dia_min}!"
 
     print(f"📧 Enviando: {subject}")
     send_email(subject, body_html)
