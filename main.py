@@ -156,6 +156,14 @@ def get_calendar_data():
     except Exception as e:
         print(f"Error calendario: {e}")
 
+    print(f"   → Calendarios encontrados: {len(list(calendars))}")
+        for cal in calendars:
+            try:
+                nombre = cal.name if hasattr(cal, 'name') else str(cal)
+                todos_raw = cal.todos()
+                print(f"      Calendario '{nombre}': {len(todos_raw)} todos en total")
+            except Exception as ex:
+                print(f"      Calendario error: {ex}")
     print(f"   → {len(eventos)} eventos, {len(recordatorios)} recordatorios")
     return eventos, recordatorios
 
