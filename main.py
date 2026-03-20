@@ -34,6 +34,7 @@ RSS_FEEDS = {
         'https://www.reasonwhy.es/feed',
         'https://www.puromarketing.com/rss.php',
         'https://www.xataka.com/feed',
+        'https://hipertextual.com/feed',
     ],
 }
 
@@ -48,13 +49,22 @@ PALABRAS_EXCLUIR = {
     'formula 1', 'motogp', 'ciclismo', 'atletismo'
 }
 
+# Contenido multimedia que no se puede leer
+PALABRAS_MULTIMEDIA = {
+    'informativo', 'informativos', 'podcast', 'audio', 'vídeo directo',
+    'en directo', 'en vivo', 'retransmisión', 'programa de radio',
+    'escucha', 'escúchalo', 'rne audio', 'rtve audio', 'canal sur radio'
+}
+
 PALABRAS_DISENO = {
-    'diseño', 'marketing', 'branding', 'campaña', 'creatividad', 'tipografía',
-    'ilustración', 'video', 'vídeo', 'edición', 'audiovisual', 'redes sociales',
-    'digital', 'contenido', 'creativo', 'visual', 'gráfico', 'fotografía',
-    'tendencia', 'herramienta', 'inteligencia artificial', 'publicidad',
-    'agencia', 'copy', 'estrategia', 'seo', 'social media', 'ia generativa',
-    'after effects', 'premiere', 'photoshop', 'illustrator', 'canva'
+    'diseño', 'marketing', 'branding', 'campaña', 'creatividad',
+    'ilustración', 'video', 'vídeo', 'edición', 'audiovisual',
+    'redes sociales', 'digital', 'contenido', 'creativo', 'visual',
+    'gráfico', 'fotografía', 'tendencia', 'herramienta', 'publicidad',
+    'agencia', 'copy', 'estrategia', 'seo', 'social media', 'canva',
+    'after effects', 'premiere', 'photoshop', 'illustrator', 'tipografía',
+    'inteligencia artificial', 'ia', 'reel', 'stories', 'influencer',
+    'marca', 'identidad visual', 'comunicación', 'medios', 'periodismo'
 }
 
 def es_espanol(texto):
@@ -64,10 +74,18 @@ def es_espanol(texto):
 def es_relevante(texto):
     return not any(p in texto.lower() for p in PALABRAS_EXCLUIR)
 
+def es_legible(texto):
+    """Descarta contenido multimedia que no se puede leer"""
+    return not any(p in texto.lower() for p in PALABRAS_MULTIMEDIA)
+
 def es_diseno_relevante(texto):
     if not es_relevante(texto):
         return False
     return any(p in texto.lower() for p in PALABRAS_DISENO)
+
+def limpiar_titulo(texto):
+    texto = re.sub(r'\s*-\s*[\w\s\.]+$', '', texto.strip())
+    return texto.strip()
 
 def limpiar_summary(texto):
     texto = re.sub(r'<[^>]+>', '', texto)
@@ -89,10 +107,10 @@ def get_calendar_data():
             username=ICLOUD_EMAIL,
             password=ICLOUD_APP_PASSWORD
         )
-        principal     = client.principal()
-        calendars     = principal.calendars()
+        principal      = client.principal()
+        calendars      = principal.calendars()
         calendars_list = list(calendars)
-        print(f"   → Calendarios encontrados: {len(calendars_list)}")
+        print(f"   → {len(calendars_list)} calendarios encontrados")
 
         today_start = datetime.combine(hoy, datetime.min.time())
         today_end   = datetime.combine(hoy, datetime.max.time())
@@ -114,52 +132,63 @@ def get_calendar_data():
                         continue
 
                 # ── Recordatorios (VTODO) ──
+                todos_raw = []
                 try:
-                    todos_raw = calendar.todos()
+                    todos_raw = calendar.todos(include_completed=False)
+                    print(f"      '{nombre}' (include_completed=False): {len(todos_raw)} todos")
                 except Exception:
-                    todos_raw = []
-
-                print(f"      '{nombre}': {len(todos_raw)} todos encontrados")
+                    try:
+                        todos_raw = calendar.todos()
+                        print(f"      '{nombre}' (todos()): {len(todos_raw)} todos")
+                    except Exception as e:
+                        print(f"      '{nombre}' error: {e}")
 
                 for todo in todos_raw:
                     try:
-                        obj = todo.vobject_instance
+                        raw_str = todo.data if hasattr(todo, 'data') else ''
+                        obj     = todo.vobject_instance
+
                         if not hasattr(obj, 'vtodo'):
-                            continue
-                        comp = obj.vtodo
-
-                        status = str(comp.status.value).upper() if hasattr(comp, 'status') else ''
-                        if status in ('COMPLETED', 'CANCELLED'):
+                            print(f"         → sin vtodo, saltando")
                             continue
 
+                        comp    = obj.vtodo
+                        status  = str(comp.status.value).upper() if hasattr(comp, 'status') else 'NONE'
                         summary = str(comp.summary.value) if hasattr(comp, 'summary') else 'Sin título'
                         due     = comp.due.value if hasattr(comp, 'due') else None
 
-                        print(f"         todo: '{summary}' | due: {due} | status: {status}")
+                        print(f"         todo: '{summary}' | status: {status} | due: {due}")
+
+                        if status in ('COMPLETED', 'CANCELLED'):
+                            continue
 
                         if due:
                             due_date = due.date() if isinstance(due, datetime) else due
                             if due_date == hoy:
                                 hora = due.strftime('%H:%M') if isinstance(due, datetime) else '—'
                                 recordatorios.append({'hora': hora, 'titulo': summary})
+                                print(f"            ✅ añadido (fecha hoy)")
+                            else:
+                                print(f"            ⏭ ignorado (fecha {due_date}, hoy es {hoy})")
                         else:
                             recordatorios.append({'hora': '—', 'titulo': summary})
+                            print(f"            ✅ añadido (sin fecha)")
 
                     except Exception as e:
                         print(f"         error leyendo todo: {e}")
                         continue
 
             except Exception as e:
-                print(f"      Error en calendario: {e}")
+                print(f"      Error en calendario '{nombre}': {e}")
                 continue
 
         eventos.sort(key=lambda x: (x['hora'] == 'Todo el día', x['hora']))
         recordatorios.sort(key=lambda x: (x['hora'] == '—', x['hora']))
 
     except Exception as e:
-        print(f"Error calendario: {e}")
+        print(f"Error conectando calendario: {e}")
 
-    print(f"   → Total: {len(eventos)} eventos, {len(recordatorios)} recordatorios")
+    print(f"   → TOTAL: {len(eventos)} eventos, {len(recordatorios)} recordatorios")
     return eventos, recordatorios
 
 
@@ -184,14 +213,15 @@ def get_weather():
 
 
 # ── RSS ────────────────────────────────────────────────────────────────────────
-def get_rss_items(feeds, max_per_feed=4, total_max=4, solo_espanol=True, filtro_diseno=False):
+def get_rss_items(feeds, max_per_feed=5, total_max=4,
+                  solo_espanol=True, filtro_diseno=False, filtro_legible=False):
     items = []
     seen  = set()
     for url in feeds:
         try:
             feed = feedparser.parse(url)
             for entry in feed.entries[:max_per_feed]:
-                title   = re.sub(r'\s*-\s*[\w\s\.]+$', '', entry.get('title', '').strip()).strip()
+                title   = limpiar_titulo(entry.get('title', ''))
                 summary = limpiar_summary(entry.get('summary', ''))
                 link    = entry.get('link', '')
 
@@ -200,6 +230,8 @@ def get_rss_items(feeds, max_per_feed=4, total_max=4, solo_espanol=True, filtro_
                 if solo_espanol and not es_espanol(title + ' ' + summary):
                     continue
                 if not es_relevante(title + ' ' + summary):
+                    continue
+                if filtro_legible and not es_legible(title + ' ' + summary):
                     continue
                 if filtro_diseno and not es_diseno_relevante(title + ' ' + summary):
                     continue
@@ -392,9 +424,11 @@ def main():
     weather = get_weather()
 
     print("📰 Cargando RSS...")
-    news_ext    = get_rss_items(RSS_FEEDS['extremadura'], solo_espanol=True)
+    news_ext    = get_rss_items(RSS_FEEDS['extremadura'], solo_espanol=True, filtro_legible=True)
     news_eurov  = get_rss_items(RSS_FEEDS['eurovision'], solo_espanol=True, max_per_feed=5)
-    news_diseno = get_rss_items(RSS_FEEDS['diseno'], solo_espanol=True, filtro_diseno=True)
+    news_diseno = get_rss_items(RSS_FEEDS['diseno'], solo_espanol=True, filtro_diseno=True, max_per_feed=6, total_max=1)
+
+    print(f"   → Extremadura: {len(news_ext)} | Eurovisión: {len(news_eurov)} | Diseño: {len(news_diseno)}")
 
     print("✉️  Generando email...")
     body_html = build_email_html(eventos, recordatorios, weather, news_ext, news_eurov, news_diseno, fecha_str)
